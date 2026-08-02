@@ -1,55 +1,51 @@
 version: "3.9"
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: placeholder-image-name
-    container_name: placeholder-app-container
+    image: ems-app:latest
+    container_name: ems_app_container
     environment:
-      DJANGO_SECRET_KEY: "REPLACE_ME"
-      DJANGO_DEBUG: "False"
-      DJANGO_ALLOWED_HOSTS: "REPLACE_ME"
-      DB_ENGINE: "REPLACE_ME"
-      DB_NAME: "REPLACE_ME"
-      DB_USER: "REPLACE_ME"
-      DB_PASSWORD: "REPLACE_ME"
-      DB_HOST: "REPLACE_ME"
-      DB_PORT: "REPLACE_ME"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: ${DJANGO_DEBUG}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+      DB_ENGINE: django.db.backends.mysql
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: database
+      DB_PORT: "3306"
     ports:
-      - "REPLACE_ME"
+      - "8000:8000"
     depends_on:
       - database
     volumes:
       - type: volume
         source: app-data
-        target: /app
+        target: /usr/src/app/staticfiles
     networks:
       - app-network
-    # TODO: Add production-ready service configuration, health checks, and runtime settings.
-
   database:
     image: mysql:8.0
-    container_name: placeholder-database-container
+    container_name: ems_database_container
+    restart: always
     environment:
-      MYSQL_DATABASE: "REPLACE_ME"
-      MYSQL_USER: "REPLACE_ME"
-      MYSQL_PASSWORD: "REPLACE_ME"
-      MYSQL_ROOT_PASSWORD: "REPLACE_ME"
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - "3306:3306"
     volumes:
       - database-data:/var/lib/mysql
     networks:
       - app-network
-    # TODO: Define persistence, credentials, and service exposure for the target environment.
-
 volumes:
   app-data:
     driver: local
   database-data:
     driver: local
-
 networks:
   app-network:
     driver: bridge
-    # TODO: Add environment-specific network configuration if required.

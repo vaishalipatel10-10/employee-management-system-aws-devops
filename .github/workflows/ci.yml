@@ -1,53 +1,81 @@
 name: DevOps Capstone Workflow
 
 on:
+  push:
+    branches:
+      - main
+      - feature/devops-setup
   workflow_dispatch:
 
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: ems-app
+  ECS_CLUSTER: ems-cluster
+  ECS_SERVICE: ems-service
+  ECS_TASK_DEFINITION: infrastructure/ecs/task-definition.json
+  CONTAINER_NAME: ems-container
+
 jobs:
-  checkout:
+  build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
-        run: echo "TODO: Implement checkout step"
+        uses: actions/checkout@v4
 
-  setup-python:
-    needs: checkout
-    runs-on: ubuntu-latest
-    steps:
       - name: Setup Python Environment
-        run: echo "TODO: Implement Python setup step"
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
 
-  install-dependencies:
-    needs: setup-python
-    runs-on: ubuntu-latest
-    steps:
       - name: Install Dependencies
-        run: echo "TODO: Implement dependency installation step"
+        run: pip install -r requirements.txt
 
-  docker-build:
-    needs: install-dependencies
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build Docker Image
-        run: echo "TODO: Implement Docker build step"
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-  ecr-login:
-    needs: docker-build
-    runs-on: ubuntu-latest
-    steps:
       - name: Login to Amazon ECR
-        run: echo "TODO: Implement Amazon ECR login step"
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-  docker-push:
-    needs: ecr-login
-    runs-on: ubuntu-latest
-    steps:
+      - name: Build Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
       - name: Push Docker Image
-        run: echo "TODO: Implement Docker push step"
+        id: push-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  ecs-deploy:
-    needs: docker-push
-    runs-on: ubuntu-latest
-    steps:
+      - name: Render new task definition
+        id: render-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.push-image.outputs.image }}
+
       - name: Deploy to Amazon ECS
-        run: echo "TODO: Implement ECS deployment step"
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: false
+
+      - name: Wait for ECS service to stabilize
+        run: |
+          aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services ${{ env.ECS_SERVICE }}

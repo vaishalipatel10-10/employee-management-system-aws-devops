@@ -9,3 +9,5 @@ staticfiles/
 venv/
 .pytest_cache/
 .DS_Store
+db-secret.json
+db-secret.json

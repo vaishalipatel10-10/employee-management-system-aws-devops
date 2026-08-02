@@ -1,0 +1,41 @@
+{
+  "family": "ems-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::074259075025:role/ems-ecs-task-execution-role",
+  "containerDefinitions": [
+    {
+      "name": "ems-container",
+      "image": "074259075025.dkr.ecr.ap-south-1.amazonaws.com/ems-app:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+  { "name": "DJANGO_SECRET_KEY", "value": "dev-secret-key-change-in-production" },
+  { "name": "DJANGO_DEBUG", "value": "False" },
+  { "name": "DJANGO_ALLOWED_HOSTS", "value": "*" },
+  { "name": "DB_ENGINE", "value": "django.db.backends.mysql" },
+  { "name": "DB_NAME", "value": "ems_db" },
+  { "name": "DB_HOST", "value": "ems-mysql-db.chgmm4c24zkc.ap-south-1.rds.amazonaws.com" },
+  { "name": "DB_PORT", "value": "3306" }
+],
+"secrets": [
+  { "name": "DB_USER", "valueFrom": "arn:aws:secretsmanager:ap-south-1:074259075025:secret:ems/db-credentials-RV1ue8:DB_USER::" },
+  { "name": "DB_PASSWORD", "valueFrom": "arn:aws:secretsmanager:ap-south-1:074259075025:secret:ems/db-credentials-RV1ue8:DB_PASSWORD::" }
+],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ems-task",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ems"
+        }
+      }
+    }
+  ]
+}
